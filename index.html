@@ -440,7 +440,7 @@
     Автоматический выбор лучших серверов
   </div>
   <h1>Быстрый <span>VPN</span><br>без лишних настроек</h1>
-  <p>Конфиги берутся из vpns.txt. Пинг проверяется при загрузке и каждые 10 минут.</p>
+  <p>Конфиги берутся из vpns.txt. Реальный пинг проверяется через WebSocket при загрузке и каждые 10 минут.</p>
 </section>
 
 <section class="section">
@@ -465,48 +465,12 @@
 <section class="tutorial-section">
   <h2>Как подключиться</h2>
   <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body">
-        <div class="step-title">Скачайте приложение HAPP</div>
-        <div class="step-desc">Нажмите «Скачать HAPP» в шапке и выберите платформу — Windows, Android или iOS.</div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body">
-        <div class="step-title">Войдите в приложение</div>
-        <div class="step-desc">Откройте HAPP и выполните первоначальный вход.</div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body">
-        <div class="step-title">Разрешите конфигурацию VPN</div>
-        <div class="step-desc">При первом запуске нажмите «Разрешить» — система попросит создать VPN-профиль.</div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-body">
-        <div class="step-title">Нажмите + в левом верхнем углу</div>
-        <div class="step-desc">Откроется форма добавления новой подписки.</div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-body">
-        <div class="step-title">Введите название</div>
-        <div class="step-desc">В поле «Название» напишите что угодно, например VPNHub.</div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">6</div>
-      <div class="step-body">
-        <div class="step-title">Вставьте URL подписки</div>
-        <div class="step-desc">В поле «URL подписки» вставьте скопированный URL из карточки выше. Готово — подключайтесь!</div>
-      </div>
-    </div>
+    <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Скачайте приложение HAPP</div><div class="step-desc">Нажмите «Скачать HAPP» в шапке и выберите платформу.</div></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Войдите в приложение</div><div class="step-desc">Откройте HAPP и выполните вход.</div></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Разрешите VPN</div><div class="step-desc">При первом запуске нажмите «Разрешить».</div></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Нажмите +</div><div class="step-desc">В левом верхнем углу.</div></div></div>
+    <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Введите название</div><div class="step-desc">Например, VPNHub.</div></div></div>
+    <div class="step"><div class="step-num">6</div><div class="step-body"><div class="step-title">Вставьте URL</div><div class="step-desc">Скопируйте URL из карточки и вставьте в поле «URL подписки».</div></div></div>
   </div>
 </section>
 
@@ -520,20 +484,11 @@
 <div class="modal-backdrop" id="modalBackdrop" onclick="closeModalBg(event)">
   <div class="modal">
     <h3>Скачать HAPP</h3>
-    <p>Выберите вашу платформу</p>
+    <p>Выберите платформу</p>
     <div class="platform-btns">
-      <a class="platform-btn" href="happ-setup.exe" download onclick="closeModal()">
-        <div class="platform-btn-icon">🪟</div>
-        <div class="platform-btn-text"><strong>Windows</strong><span>Загрузить .exe установщик</span></div>
-      </a>
-      <a class="platform-btn" href="happ.apk" download onclick="closeModal()">
-        <div class="platform-btn-icon">🤖</div>
-        <div class="platform-btn-text"><strong>Android</strong><span>Загрузить .apk файл</span></div>
-      </a>
-      <a class="platform-btn" href="https://apps.apple.com/app/happ/id6476192918" target="_blank" rel="noopener" onclick="closeModal()">
-        <div class="platform-btn-icon">🍎</div>
-        <div class="platform-btn-text"><strong>iOS</strong><span>Открыть в App Store</span></div>
-      </a>
+      <a class="platform-btn" href="happ-setup.exe" download onclick="closeModal()"><div class="platform-btn-icon">🪟</div><div class="platform-btn-text"><strong>Windows</strong><span>.exe установщик</span></div></a>
+      <a class="platform-btn" href="happ.apk" download onclick="closeModal()"><div class="platform-btn-icon">🤖</div><div class="platform-btn-text"><strong>Android</strong><span>.apk файл</span></div></a>
+      <a class="platform-btn" href="https://apps.apple.com/app/happ/id6476192918" target="_blank" onclick="closeModal()"><div class="platform-btn-icon">🍎</div><div class="platform-btn-text"><strong>iOS</strong><span>App Store</span></div></a>
     </div>
     <button class="modal-close" onclick="closeModal()">Закрыть</button>
   </div>
@@ -545,7 +500,6 @@
 var allConfigs = [];
 var pingCache = {};
 var bestConfigs = [];
-var pingAttempts = {}; // track retries for each url
 
 // DOM elements
 var preloader = document.getElementById('preloader');
@@ -555,9 +509,9 @@ var preloaderFill = document.getElementById('preloaderFill');
 var preloaderStats = document.getElementById('preloaderStats');
 
 // Settings
-var MAX_PING_RETRIES = 3;
 var PING_TIMEOUT = 5000;
-var PING_CONCURRENCY = 3;
+var WS_TIMEOUT = 5000;
+var PING_CONCURRENCY = 2;
 
 // Load vpns.txt
 async function loadConfigs() {
@@ -582,11 +536,6 @@ async function loadConfigs() {
       }
     }).filter(function(c) { return c.url; });
 
-    // Initialize ping attempts tracker
-    allConfigs.forEach(function(cfg) {
-      pingAttempts[cfg.url] = 0;
-    });
-
     hideError();
     return true;
   } catch(e) {
@@ -595,56 +544,124 @@ async function loadConfigs() {
   }
 }
 
-// Single ping attempt using Image (most reliable for CORS)
-function pingSingleAttempt(url) {
+// Extract host and port from URL for WebSocket ping
+function extractHostAndPort(url) {
+  try {
+    var u = new URL(url);
+    var host = u.hostname;
+    var port = u.port || (u.protocol === 'https:' ? 443 : 80);
+    var protocol = u.protocol;
+    return { host: host, port: port, protocol: protocol };
+  } catch(e) {
+    return null;
+  }
+}
+
+// WebSocket ping (most accurate)
+function webSocketPing(host, port) {
   return new Promise(function(resolve) {
-    var startTime = performance.now();
-    var img = new Image();
+    var ws = null;
     var timeoutId = setTimeout(function() {
-      img.onload = img.onerror = null;
+      if (ws && ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
       resolve(null);
-    }, PING_TIMEOUT);
+    }, WS_TIMEOUT);
     
-    img.onload = function() {
+    var startTime = performance.now();
+    
+    try {
+      ws = new WebSocket('wss://' + host + ':' + port);
+      
+      ws.onopen = function() {
+        var elapsed = Math.round(performance.now() - startTime);
+        clearTimeout(timeoutId);
+        ws.close();
+        resolve(elapsed < WS_TIMEOUT ? elapsed : null);
+      };
+      
+      ws.onerror = function() {
+        clearTimeout(timeoutId);
+        if (ws) ws.close();
+        resolve(null);
+      };
+      
+      ws.onclose = function() {
+        // Already handled
+      };
+    } catch(e) {
       clearTimeout(timeoutId);
-      var elapsed = Math.round(performance.now() - startTime);
-      resolve(elapsed < PING_TIMEOUT ? elapsed : null);
-    };
-    
-    img.onerror = function() {
-      clearTimeout(timeoutId);
-      // Fallback to fetch
-      fetch(url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
-        .then(function() {
-          var elapsed = Math.round(performance.now() - startTime);
-          resolve(elapsed < PING_TIMEOUT ? elapsed : null);
-        })
-        .catch(function() {
-          resolve(null);
-        });
-    };
-    
-    var separator = url.indexOf('?') !== -1 ? '&' : '?';
-    img.src = url + separator + 'ping=' + Date.now() + Math.random();
+      resolve(null);
+    }
   });
 }
 
-// Ping with retries (up to MAX_PING_RETRIES)
-async function pingWithRetries(url) {
-  for (var attempt = 1; attempt <= MAX_PING_RETRIES; attempt++) {
-    var ms = await pingSingleAttempt(url);
-    if (ms !== null) {
-      return ms;
+// HTTPS ping using fetch (measures connection time)
+function httpsPing(url) {
+  return new Promise(function(resolve) {
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() {
+      controller.abort();
+      resolve(null);
+    }, PING_TIMEOUT);
+    
+    var startTime = performance.now();
+    
+    fetch(url, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      cache: 'no-store',
+      signal: controller.signal
+    }).then(function() {
+      clearTimeout(timeoutId);
+      var elapsed = Math.round(performance.now() - startTime);
+      resolve(elapsed < PING_TIMEOUT ? elapsed : null);
+    }).catch(function() {
+      clearTimeout(timeoutId);
+      resolve(null);
+    });
+  });
+}
+
+// Smart ping: try WebSocket first, fallback to HTTPS
+async function pingUrl(url) {
+  var hostInfo = extractHostAndPort(url);
+  
+  // Try WebSocket ping first
+  if (hostInfo && (hostInfo.protocol === 'https:' || hostInfo.protocol === 'http:')) {
+    var wsMs = await webSocketPing(hostInfo.host, hostInfo.port);
+    if (wsMs !== null) {
+      return wsMs;
     }
-    // Small delay between retries
-    await new Promise(function(r) { setTimeout(r, 500); });
   }
+  
+  // Fallback to HTTPS ping
+  var httpsMs = await httpsPing(url);
+  return httpsMs;
+}
+
+// Ping with retries (up to 3 attempts)
+async function pingWithRetries(url, retryCount) {
+  retryCount = retryCount || 0;
+  var maxRetries = 3;
+  
+  var ms = await pingUrl(url);
+  
+  if (ms !== null) {
+    return ms;
+  }
+  
+  if (retryCount < maxRetries - 1) {
+    await new Promise(function(r) { setTimeout(r, 1000); });
+    return pingWithRetries(url, retryCount + 1);
+  }
+  
   return null;
 }
 
-// Measure all pings with retries for N/A results
+// Measure all pings
 async function measureAllPings(showProgress) {
-  if (!allConfigs.length) return;
+  if (!allConfigs.length) return { successCount: 0, failCount: 0 };
   
   setStatus('Проверка пинга...', 'scan');
   var total = allConfigs.length;
@@ -657,24 +674,21 @@ async function measureAllPings(showProgress) {
     if (preloaderStats) preloaderStats.style.display = 'block';
   }
   
-  // Process in batches
-  for (var i = 0; i < total; i += PING_CONCURRENCY) {
-    var batch = allConfigs.slice(i, i + PING_CONCURRENCY);
-    var batchResults = await Promise.all(batch.map(async function(cfg) {
-      var ms = await pingWithRetries(cfg.url);
-      return { url: cfg.url, ms: ms };
-    }));
+  // Process one by one to avoid overwhelming
+  for (var i = 0; i < total; i++) {
+    var cfg = allConfigs[i];
+    var ms = await pingWithRetries(cfg.url);
     
-    batchResults.forEach(function(r) {
-      pingCache[r.url] = r.ms;
-      if (r.ms !== null) {
-        successCount++;
-      } else {
-        failCount++;
-      }
-    });
+    pingCache[cfg.url] = ms;
     
-    completed += batch.length;
+    if (ms !== null) {
+      successCount++;
+    } else {
+      failCount++;
+    }
+    
+    completed++;
+    
     if (showProgress) {
       updatePreloaderProgress(completed, total, 'Проверка пинга серверов...');
       if (preloaderStats) {
@@ -693,21 +707,18 @@ async function measureAllPings(showProgress) {
   return { successCount: successCount, failCount: failCount };
 }
 
-// Select best 3 configs by ping (lowest ms)
+// Select best 3 configs by ping
 function selectBestConfigs() {
-  // Get configs with valid ping
   var configsWithPing = allConfigs.filter(function(cfg) {
     return pingCache[cfg.url] !== null && pingCache[cfg.url] !== undefined;
   });
   
-  // Sort by ping (lower is better)
   configsWithPing.sort(function(a, b) {
     return pingCache[a.url] - pingCache[b.url];
   });
   
   var top3 = configsWithPing.slice(0, 3);
   
-  // If less than 3 have ping, add the rest (without ping) at the end
   if (top3.length < 3) {
     var remaining = allConfigs.filter(function(cfg) {
       return pingCache[cfg.url] === null || pingCache[cfg.url] === undefined;
@@ -881,7 +892,8 @@ async function refreshAll() {
   await measureAllPings(false);
   selectBestConfigs();
   renderCards();
-  setStatus('Обновлено ' + timeStr(), 'ok');
+  var withPing = allConfigs.filter(function(c) { return pingCache[c.url] !== null; }).length;
+  setStatus('Обновлено (' + withPing + '/' + allConfigs.length + ')', 'ok');
   startCountdown();
 }
 
@@ -910,9 +922,8 @@ window.openModal = openModal;
 window.closeModal = closeModal;
 window.closeModalBg = closeModalBg;
 
-// Main initialization
+// Main init
 async function init() {
-  // Step 1: Load configs
   updatePreloaderProgress(0, 1, 'Загрузка конфигураций...');
   if (preloaderStats) preloaderStats.style.display = 'none';
   
@@ -925,38 +936,28 @@ async function init() {
     return;
   }
   
-  // Step 2: Measure all pings with retries
   await measureAllPings(true);
-  
-  // Step 3: Select best configs by ping
   selectBestConfigs();
-  
-  // Step 4: Render cards
   renderCards();
   
-  // Step 5: Hide preloader and show content
   preloader.classList.add('hide');
   mainContent.classList.add('visible');
-  
-  // Step 6: Start countdown
   startCountdown();
   
-  // Step 7: Set final status
   var withPing = allConfigs.filter(function(c) { return pingCache[c.url] !== null; }).length;
   setStatus('Готово (' + withPing + '/' + allConfigs.length + ' отвечают)', 'ok');
 }
 
-// Start the app
 init();
 
-// Background ping check every 10 minutes (without preloader)
+// Background ping check every 10 minutes
 setInterval(function() {
   if (allConfigs.length > 0) {
     measureAllPings(false).then(function() {
       selectBestConfigs();
       renderCards();
       var withPing = allConfigs.filter(function(c) { return pingCache[c.url] !== null; }).length;
-      setStatus('Обновлено (' + withPing + '/' + allConfigs.length + ' отвечают)', 'ok');
+      setStatus('Обновлено (' + withPing + '/' + allConfigs.length + ')', 'ok');
     });
   }
 }, 10 * 60 * 1000);
