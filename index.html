@@ -61,7 +61,6 @@
     overflow-x: hidden;
   }
 
-  /* PRELOADER */
   .preloader {
     position: fixed;
     inset: 0;
@@ -109,7 +108,6 @@
     width: 0%;
   }
 
-  /* MAIN CONTENT - initially hidden */
   .main-content {
     opacity: 0;
     transition: opacity 0.6s ease;
@@ -408,7 +406,6 @@
 </head>
 <body>
 
-<!-- PRELOADER -->
 <div class="preloader" id="preloader">
   <div class="preloader-spinner"></div>
   <div class="preloader-text" id="preloaderText">Загрузка конфигураций...</div>
@@ -417,12 +414,10 @@
   </div>
 </div>
 
-<!-- MAIN CONTENT -->
 <div class="main-content" id="mainContent">
 <div class="bg-grid"></div>
 <div class="bg-radial"></div>
 
-<!-- HEADER -->
 <header>
   <div class="logo"><span class="logo-dot"></span>VPNHub</div>
   <button class="btn-dl" onclick="openModal()">
@@ -433,17 +428,15 @@
   </button>
 </header>
 
-<!-- HERO -->
 <section class="hero">
   <div class="hero-badge">
     <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
     Автоматический выбор лучших серверов
   </div>
   <h1>Быстрый <span>VPN</span><br>без лишних настроек</h1>
-  <p>Конфиги берутся из <code>vpns.txt</code>. Пинг проверяется каждые 10 минут, лучшие 3 обновляются каждые 30 минут.</p>
+  <p>Конфиги берутся из vpns.txt. Пинг проверяется при загрузке и каждые 10 минут.</p>
 </section>
 
-<!-- CONFIGS -->
 <section class="section">
   <div class="section-label">
     <h2>Лучшие конфиги</h2>
@@ -458,14 +451,11 @@
       Обновление через <span id="countdown">30:00</span>
     </div>
   </div>
-  <div class="configs-grid" id="configsGrid">
-    <!-- будет заполнено динамически -->
-  </div>
+  <div class="configs-grid" id="configsGrid"></div>
 </section>
 
 <div class="divider"></div>
 
-<!-- TUTORIAL -->
 <section class="tutorial-section">
   <h2>Как подключиться</h2>
   <div class="steps">
@@ -493,7 +483,7 @@
     <div class="step">
       <div class="step-num">4</div>
       <div class="step-body">
-        <div class="step-title">Нажмите <span class="step-tag">+</span> в левом верхнем углу</div>
+        <div class="step-title">Нажмите + в левом верхнем углу</div>
         <div class="step-desc">Откроется форма добавления новой подписки.</div>
       </div>
     </div>
@@ -501,7 +491,7 @@
       <div class="step-num">5</div>
       <div class="step-body">
         <div class="step-title">Введите название</div>
-        <div class="step-desc">В поле «Название» напишите что угодно, например <span class="step-tag">VPNHub</span>.</div>
+        <div class="step-desc">В поле «Название» напишите что угодно, например VPNHub.</div>
       </div>
     </div>
     <div class="step">
@@ -521,7 +511,6 @@
 
 <div class="copy-toast" id="copyToast"></div>
 
-<!-- MODAL -->
 <div class="modal-backdrop" id="modalBackdrop" onclick="closeModalBg(event)">
   <div class="modal">
     <h3>Скачать HAPP</h3>
@@ -546,9 +535,9 @@
 </div>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
-var allConfigs  = [];   // {name, url}
-var pingCache   = {};   // url → ms (number) | null (timeout/error)
+// State
+var allConfigs = [];
+var pingCache = {};
 var bestConfigs = [];
 
 // DOM elements
@@ -557,108 +546,95 @@ var mainContent = document.getElementById('mainContent');
 var preloaderText = document.getElementById('preloaderText');
 var preloaderFill = document.getElementById('preloaderFill');
 
-// ── Load vpns.txt ──────────────────────────────────────────────────────────
+// Load vpns.txt
 async function loadConfigs() {
   try {
-    var res = await fetch('vpns.txt?nc=' + Date.now());
+    var res = await fetch('vpns.txt?t=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     var text = await res.text();
     var lines = text.split('\n')
-      .map(function(l){ return l.trim(); })
-      .filter(function(l){ return l && l[0] !== '#'; });
+      .map(function(l) { return l.trim(); })
+      .filter(function(l) { return l && l[0] !== '#'; });
 
     allConfigs = lines.map(function(line) {
-      if (line.indexOf('|') !== -1) {
-        var sep = line.indexOf('|');
-        return { name: line.slice(0, sep).trim(), url: line.slice(sep + 1).trim() };
+      var pipeIndex = line.indexOf('|');
+      if (pipeIndex !== -1) {
+        return { name: line.slice(0, pipeIndex).trim(), url: line.slice(pipeIndex + 1).trim() };
       }
       try {
         var u = new URL(line);
         return { name: u.hostname, url: line };
       } catch(e) {
-        return { name: line.slice(0, 40), url: line };
+        return { name: line.substring(0, 40), url: line };
       }
-    }).filter(function(c){ return c.url; });
+    }).filter(function(c) { return c.url; });
 
     hideError();
     return true;
   } catch(e) {
-    showError('Не удалось загрузить vpns.txt: ' + e.message +
-      '. Файл должен лежать рядом с index.html. Откройте сайт через веб-сервер, а не через file://');
+    showError('Не удалось загрузить vpns.txt: ' + e.message);
     return false;
   }
 }
 
-// ── REAL PING MEASUREMENT using fetch with timeout ─────────────────────────
-var PING_TIMEOUT = 5000;  // 5 seconds max per ping
-var PING_CONCURRENCY = 3; // 3 parallel pings at a time
+// REAL PING using Image object (works without CORS)
+var PING_TIMEOUT = 5000;
+var PING_CONCURRENCY = 3;
 
-async function pingOne(url) {
-  var controller = new AbortController();
-  var timeoutId = setTimeout(function() { controller.abort(); }, PING_TIMEOUT);
-  var startTime = performance.now();
-  
-  try {
-    // Try to fetch with no-cors mode - this will still measure connection time
-    await fetch(url, {
-      method: 'GET',
-      mode: 'no-cors',
-      cache: 'no-store',
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    var elapsed = Math.round(performance.now() - startTime);
-    // Cap at timeout - 1 to avoid showing timeout values
-    return elapsed < PING_TIMEOUT ? elapsed : null;
-  } catch(e) {
-    clearTimeout(timeoutId);
-    // If fetch fails, we still might get a timing if it was a network error
-    // For no-cors, opaque responses don't trigger errors usually
-    if (e.name === 'AbortError') {
-      return null;
-    }
-    // Some endpoints might block fetch, try HEAD as fallback
-    try {
-      var controller2 = new AbortController();
-      var timeoutId2 = setTimeout(function() { controller2.abort(); }, PING_TIMEOUT);
-      var startTime2 = performance.now();
-      await fetch(url, {
-        method: 'HEAD',
-        mode: 'no-cors',
-        cache: 'no-store',
-        signal: controller2.signal
-      });
-      clearTimeout(timeoutId2);
-      return Math.round(performance.now() - startTime2);
-    } catch(e2) {
-      return null;
-    }
-  }
+function pingUrl(url) {
+  return new Promise(function(resolve) {
+    var startTime = performance.now();
+    var img = new Image();
+    var timeoutId = setTimeout(function() {
+      img.onload = img.onerror = null;
+      resolve(null);
+    }, PING_TIMEOUT);
+    
+    img.onload = function() {
+      clearTimeout(timeoutId);
+      var elapsed = Math.round(performance.now() - startTime);
+      resolve(elapsed < PING_TIMEOUT ? elapsed : null);
+    };
+    
+    img.onerror = function() {
+      clearTimeout(timeoutId);
+      // Try one more time with a different approach - fetch with no-cors
+      fetch(url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+        .then(function() {
+          var elapsed = Math.round(performance.now() - startTime);
+          resolve(elapsed < PING_TIMEOUT ? elapsed : null);
+        })
+        .catch(function() {
+          resolve(null);
+        });
+    };
+    
+    // Add cache buster
+    var separator = url.indexOf('?') !== -1 ? '&' : '?';
+    img.src = url + separator + 'ping=' + Date.now();
+  });
 }
 
 async function measureAllPings(showProgress) {
-  if (!allConfigs.length) return [];
+  if (!allConfigs.length) return;
+  
+  setStatus('Проверка пинга...', 'scan');
+  var total = allConfigs.length;
+  var completed = 0;
   
   if (showProgress) {
-    setStatus('Проверка пинга...', 'scan');
-    updatePreloaderProgress(0, allConfigs.length, 'Проверка пинга серверов...');
+    updatePreloaderProgress(0, total, 'Проверка пинга серверов...');
   }
   
-  var results = [];
-  var completed = 0;
-  var total = allConfigs.length;
-  
-  // Process in batches to avoid overwhelming the browser
   for (var i = 0; i < total; i += PING_CONCURRENCY) {
     var batch = allConfigs.slice(i, i + PING_CONCURRENCY);
     var batchResults = await Promise.all(batch.map(async function(cfg) {
-      var ms = await pingOne(cfg.url);
+      var ms = await pingUrl(cfg.url);
       return { url: cfg.url, ms: ms };
     }));
     
     batchResults.forEach(function(r) {
       pingCache[r.url] = r.ms;
-      results.push(r);
     });
     
     completed += batch.length;
@@ -667,43 +643,35 @@ async function measureAllPings(showProgress) {
     }
   }
   
-  if (showProgress) {
-    setStatus('Готово', 'ok');
-  }
-  
-  return results;
+  setStatus('Готово', 'ok');
 }
 
-// ── Select best 3 by ping (lowest ms) ─────────────────────────────────────
+// Select best 3 configs by ping (lowest ms)
 function selectBestConfigs() {
-  // Get all configs that have a valid ping
-  var configsWithPing = allConfigs.filter(function(cfg) {
-    return typeof pingCache[cfg.url] === 'number';
+  var configsWithValidPing = allConfigs.filter(function(cfg) {
+    return pingCache[cfg.url] !== null && pingCache[cfg.url] !== undefined;
   });
   
-  // Sort by ping (lower is better)
-  configsWithPing.sort(function(a, b) {
+  configsWithValidPing.sort(function(a, b) {
     return pingCache[a.url] - pingCache[b.url];
   });
   
-  // Take top 3
-  var top3 = configsWithPing.slice(0, 3);
+  var top3 = configsWithValidPing.slice(0, 3);
   
-  // If we have less than 3 with ping, add some without ping
+  // Fill with any configs if less than 3 have valid ping
   if (top3.length < 3) {
-    var configsWithoutPing = allConfigs.filter(function(cfg) {
-      return typeof pingCache[cfg.url] !== 'number';
+    var remaining = allConfigs.filter(function(cfg) {
+      return top3.indexOf(cfg) === -1;
     });
-    var needed = 3 - top3.length;
-    top3 = top3.concat(configsWithoutPing.slice(0, needed));
+    top3 = top3.concat(remaining.slice(0, 3 - top3.length));
   }
   
   bestConfigs = top3;
   return bestConfigs;
 }
 
-// ── Render cards with ping badges ─────────────────────────────────────────
-var RANKS = ['🥇 Лучший', '🥈 Второй', '🥉 Третий'];
+// Render cards
+var RANKS = ['Первый', 'Второй', 'Третий'];
 
 function getPingClass(ms) {
   if (ms === null || ms === undefined) return 'ping-na';
@@ -713,11 +681,12 @@ function getPingClass(ms) {
 }
 
 function getPingText(ms) {
-  if (ms === null || ms === undefined) return '⏳ N/A';
-  return '📡 ' + ms + ' ms';
+  if (ms === null || ms === undefined) return 'N/A';
+  return ms + ' ms';
 }
 
 function escapeHtml(str) {
+  if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
@@ -732,30 +701,35 @@ function renderCards() {
   
   grid.innerHTML = '';
   
-  bestConfigs.forEach(function(cfg, index) {
+  bestConfigs.forEach(function(cfg, idx) {
     var pingMs = pingCache[cfg.url];
     var pingClass = getPingClass(pingMs);
     var pingText = getPingText(pingMs);
+    var rankText = '#' + (idx + 1) + ' ' + RANKS[idx];
+    if (idx === 0) rankText = 'Лучший';
+    if (idx === 1) rankText = 'Второй';
+    if (idx === 2) rankText = 'Третий';
+    
+    var displayUrl = cfg.url.length > 55 ? cfg.url.substring(0, 52) + '...' : cfg.url;
     
     var card = document.createElement('div');
     card.className = 'config-card';
-    card.style.animation = 'fadeUp 0.4s ease ' + (index * 0.1) + 's both';
+    card.style.animation = 'fadeUp 0.3s ease ' + (idx * 0.1) + 's both';
     
-    card.innerHTML = `
-      <div class="config-rank">${RANKS[index] || '#' + (index + 1)}</div>
-      <div class="config-name">${escapeHtml(cfg.name)}</div>
-      <div class="config-url">${escapeHtml(cfg.url.substring(0, 60))}${cfg.url.length > 60 ? '...' : ''}</div>
-      <div class="config-meta">
-        <span class="ping-badge ${pingClass}">${pingText}</span>
-        <span class="copy-hint">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="5" y="5" width="9" height="9" rx="1.5"></rect>
-            <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v7A1.5 1.5 0 0 0 3.5 12H5"></path>
-          </svg>
-          Копировать
-        </span>
-      </div>
-    `;
+    card.innerHTML = 
+      '<div class="config-rank">' + rankText + '</div>' +
+      '<div class="config-name">' + escapeHtml(cfg.name) + '</div>' +
+      '<div class="config-url">' + escapeHtml(displayUrl) + '</div>' +
+      '<div class="config-meta">' +
+        '<span class="ping-badge ' + pingClass + '">' + pingText + '</span>' +
+        '<span class="copy-hint">' +
+          '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">' +
+            '<rect x="5" y="5" width="9" height="9" rx="1.5"></rect>' +
+            '<path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v7A1.5 1.5 0 0 0 3.5 12H5"></path>' +
+          '</svg>' +
+          'Копировать' +
+        '</span>' +
+      '</div>';
     
     card.addEventListener('click', (function(url, name) {
       return function() { copyToClipboard(url, name); };
@@ -765,27 +739,25 @@ function renderCards() {
   });
 }
 
-// ── Copy to clipboard ──────────────────────────────────────────────────────
+// Copy to clipboard
 var toastTimeout;
-
 function copyToClipboard(text, name) {
   navigator.clipboard.writeText(text).then(function() {
-    showToast('✅ ' + name + ' скопирован');
+    showToast(name + ' скопирован');
   }).catch(function() {
-    // Fallback
-    var textarea = document.createElement('textarea');
-    textarea.value = text;
-    document.body.appendChild(textarea);
-    textarea.select();
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
     document.execCommand('copy');
-    document.body.removeChild(textarea);
-    showToast('✅ ' + name + ' скопирован');
+    document.body.removeChild(ta);
+    showToast(name + ' скопирован');
   });
 }
 
-function showToast(message) {
+function showToast(msg) {
   var toast = document.getElementById('copyToast');
-  toast.textContent = message;
+  toast.textContent = msg;
   toast.classList.add('show');
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(function() {
@@ -793,7 +765,7 @@ function showToast(message) {
   }, 2000);
 }
 
-// ── UI Helpers ────────────────────────────────────────────────────────────
+// UI helpers
 function setStatus(text, type) {
   var badge = document.getElementById('statusBadge');
   if (badge) {
@@ -818,9 +790,8 @@ function hideError() {
 }
 
 function updatePreloaderProgress(current, total, text) {
-  if (preloaderFill) {
-    var percent = total > 0 ? (current / total) * 100 : 0;
-    preloaderFill.style.width = percent + '%';
+  if (preloaderFill && total > 0) {
+    preloaderFill.style.width = (current / total * 100) + '%';
   }
   if (preloaderText && text) {
     preloaderText.textContent = text + ' (' + current + '/' + total + ')';
@@ -831,7 +802,7 @@ function timeStr() {
   return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Countdown timer for auto-refresh (30 min) ─────────────────────────────
+// Countdown timer
 var countdownInterval;
 var secondsLeft = 1800;
 
@@ -843,9 +814,9 @@ function startCountdown() {
     secondsLeft--;
     var minutes = Math.floor(secondsLeft / 60);
     var secs = secondsLeft % 60;
-    var countdownEl = document.getElementById('countdown');
-    if (countdownEl) {
-      countdownEl.textContent = String(minutes).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+    var cdEl = document.getElementById('countdown');
+    if (cdEl) {
+      cdEl.textContent = String(minutes).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
     }
     
     if (secondsLeft <= 0) {
@@ -855,7 +826,6 @@ function startCountdown() {
   }, 1000);
 }
 
-// ── Refresh all data (background refresh) ─────────────────────────────────
 async function refreshAll() {
   setStatus('Обновление...', 'load');
   await loadConfigs();
@@ -866,40 +836,33 @@ async function refreshAll() {
   startCountdown();
 }
 
-// ── Footer clock ──────────────────────────────────────────────────────────
+// Footer clock
 function updateFooterClock() {
-  var footerTime = document.getElementById('footerTime');
-  if (footerTime) {
+  var ft = document.getElementById('footerTime');
+  if (ft) {
     var now = new Date();
-    footerTime.textContent = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    ft.textContent = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   }
 }
 setInterval(updateFooterClock, 1000);
 updateFooterClock();
 
-// ── Modal functions ────────────────────────────────────────────────────────
+// Modal
 function openModal() {
   document.getElementById('modalBackdrop').classList.add('open');
 }
-
 function closeModal() {
   document.getElementById('modalBackdrop').classList.remove('open');
 }
-
-function closeModalBg(event) {
-  if (event.target === document.getElementById('modalBackdrop')) {
-    closeModal();
-  }
+function closeModalBg(e) {
+  if (e.target === document.getElementById('modalBackdrop')) closeModal();
 }
-
-// Expose functions globally
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.closeModalBg = closeModalBg;
 
-// ── Initialization with preloader ─────────────────────────────────────────
+// Init
 async function init() {
-  // Step 1: Load configs
   updatePreloaderProgress(0, 1, 'Загрузка конфигураций...');
   var loaded = await loadConfigs();
   
@@ -910,27 +873,16 @@ async function init() {
     return;
   }
   
-  // Step 2: Measure pings for all configs
   await measureAllPings(true);
-  
-  // Step 3: Select best 3 by ping
   selectBestConfigs();
-  
-  // Step 4: Render cards
   renderCards();
   
-  // Step 5: Hide preloader and show content
   preloader.classList.add('hide');
   mainContent.classList.add('visible');
-  
-  // Step 6: Start countdown
   startCountdown();
-  
-  // Step 7: Set status
   setStatus('Готово ' + timeStr(), 'ok');
 }
 
-// Start the app
 init();
 
 // Background ping check every 10 minutes
