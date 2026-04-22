@@ -61,6 +61,63 @@
     overflow-x: hidden;
   }
 
+  /* PRELOADER */
+  .preloader {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 24px;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+  }
+  .preloader.hide {
+    opacity: 0;
+    visibility: hidden;
+  }
+  .preloader-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid var(--card-border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .preloader-text {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    color: var(--text2);
+  }
+  .preloader-progress {
+    width: 200px;
+    height: 4px;
+    background: var(--card-border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .preloader-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    transition: width 0.2s ease;
+    width: 0%;
+  }
+
+  /* MAIN CONTENT - initially hidden */
+  .main-content {
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+  .main-content.visible {
+    opacity: 1;
+  }
+
   header {
     position: sticky; top: 0; z-index: 100;
     backdrop-filter: blur(20px);
@@ -85,10 +142,6 @@
   @keyframes blink {
     0%,100% { opacity: 1; }
     50%      { opacity: 0.3; }
-  }
-  @keyframes shimmer {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
   }
   @keyframes pulseDot {
     0%,100% { box-shadow: 0 0 0 0 var(--accent-glow); }
@@ -148,7 +201,7 @@
     padding: 0 max(2rem, calc((100vw - 1200px)/2)) 64px;
     animation: fadeUp 0.7s ease 0.2s both;
   }
-  .section-label { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .section-label { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
   .section-label h2 {
     font-family: 'Syne', sans-serif; font-size: 1.25rem;
     font-weight: 700; color: var(--text);
@@ -220,21 +273,6 @@
   .config-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: var(--accent); }
   .config-card:hover::before { opacity: 1; }
   .config-card:active { transform: scale(0.98); }
-  .config-card.skeleton { pointer-events: none; }
-
-  .skel {
-    border-radius: 6px;
-    background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite;
-    margin-bottom: 10px;
-  }
-  .skel.h14 { height: 14px; }
-  .skel.h24 { height: 24px; }
-  .skel.w40 { width: 40%; }
-  .skel.w65 { width: 65%; }
-  .skel.w100{ width: 100%; }
-  .skel.pill{ border-radius: 100px; width: 70px; margin-bottom: 0; }
 
   .config-rank {
     font-family: 'Syne', sans-serif; font-size: 0.72rem;
@@ -321,6 +359,8 @@
     padding: 20px max(2rem, calc((100vw - 1200px)/2));
     font-size: 0.8rem; color: var(--text3);
     display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
   .modal-backdrop {
@@ -381,6 +421,18 @@
 </style>
 </head>
 <body>
+
+<!-- PRELOADER -->
+<div class="preloader" id="preloader">
+  <div class="preloader-spinner"></div>
+  <div class="preloader-text" id="preloaderText">Загрузка конфигураций...</div>
+  <div class="preloader-progress">
+    <div class="preloader-progress-fill" id="preloaderFill"></div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content" id="mainContent">
 <div class="bg-grid"></div>
 <div class="bg-radial"></div>
 
@@ -429,9 +481,7 @@
     </div>
   </div>
   <div class="configs-grid" id="configsGrid">
-    <div class="config-card skeleton"><div class="skel h14 w40"></div><div class="skel h14 w65"></div><div class="skel h14 w100"></div><div class="skel h24 pill"></div></div>
-    <div class="config-card skeleton"><div class="skel h14 w40"></div><div class="skel h14 w65"></div><div class="skel h14 w100"></div><div class="skel h24 pill"></div></div>
-    <div class="config-card skeleton"><div class="skel h14 w40"></div><div class="skel h14 w65"></div><div class="skel h14 w100"></div><div class="skel h24 pill"></div></div>
+    <!-- будет заполнено динамически -->
   </div>
 </section>
 
@@ -515,12 +565,19 @@
     <button class="modal-close" onclick="closeModal()">Закрыть</button>
   </div>
 </div>
+</div>
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
 var allConfigs  = [];   // {name, url}
 var pingCache   = {};   // url → ms (number) | null (timeout/error)
 var bestConfigs = [];
+
+// DOM elements
+var preloader = document.getElementById('preloader');
+var mainContent = document.getElementById('mainContent');
+var preloaderText = document.getElementById('preloaderText');
+var preloaderFill = document.getElementById('preloaderFill');
 
 // ── Load vpns.txt ──────────────────────────────────────────────────────────
 async function loadConfigs() {
@@ -554,54 +611,98 @@ async function loadConfigs() {
   }
 }
 
-// ── Real ping ─────────────────────────────────────────────────────────────
-// Browser can't do ICMP. We measure TTFB via fetch with no-cors.
-// Works for HTTP/HTTPS endpoints that are reachable. CORS blocks still
-// return an opaque response timing on most browsers.
-var PING_TIMEOUT     = 7000;  // ms per request
-var PING_CONCURRENCY = 5;     // parallel
+// ── Real ping measurement using Image (most reliable for CORS-free measurement) ──
+// This method works because images don't have CORS restrictions
+var PING_TIMEOUT = 7000;
+var PING_CONCURRENCY = 5;
 
-async function pingOne(url) {
-  var ctrl = new AbortController();
-  var tid  = setTimeout(function(){ ctrl.abort(); }, PING_TIMEOUT);
-  var t0   = performance.now();
-  try {
-    await fetch(url, {
-      method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: ctrl.signal
-    });
-    clearTimeout(tid);
-    return Math.round(performance.now() - t0);
-  } catch(e) {
-    clearTimeout(tid);
-    if (e.name === 'AbortError') return null;
-    // For opaque no-cors, a network error means truly unreachable
-    return null;
-  }
+function pingViaImage(url) {
+  return new Promise(function(resolve) {
+    var img = new Image();
+    var startTime = performance.now();
+    var timeoutId = setTimeout(function() {
+      img.onload = img.onerror = null;
+      resolve(null);
+    }, PING_TIMEOUT);
+    
+    img.onload = function() {
+      clearTimeout(timeoutId);
+      resolve(Math.round(performance.now() - startTime));
+    };
+    img.onerror = function() {
+      clearTimeout(timeoutId);
+      // Try to ping via fetch as fallback for non-image endpoints
+      pingViaFetch(url).then(resolve);
+    };
+    // Add cache-busting for image ping
+    var separator = url.includes('?') ? '&' : '?';
+    img.src = url + separator + 'ping_cache_buster=' + Date.now() + Math.random();
+  });
 }
 
-async function measureAllPings() {
-  if (!allConfigs.length) return;
-  setStatus('Проверка пинга...', 'scan');
-  showProgress(0, allConfigs.length);
+function pingViaFetch(url) {
+  return new Promise(function(resolve) {
+    var ctrl = new AbortController();
+    var timeoutId = setTimeout(function() { ctrl.abort(); }, PING_TIMEOUT);
+    var startTime = performance.now();
+    
+    fetch(url, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      cache: 'no-store',
+      signal: ctrl.signal
+    }).then(function() {
+      clearTimeout(timeoutId);
+      resolve(Math.round(performance.now() - startTime));
+    }).catch(function() {
+      clearTimeout(timeoutId);
+      resolve(null);
+    });
+  });
+}
 
+async function pingOne(url) {
+  // Try image method first (most reliable)
+  var ms = await pingViaImage(url);
+  if (ms !== null) return ms;
+  // Fallback to fetch
+  return await pingViaFetch(url);
+}
+
+async function measureAllPings(updateProgress) {
+  if (!allConfigs.length) return;
+  
+  setStatus('Проверка пинга...', 'scan');
+  if (updateProgress) {
+    showProgress(0, allConfigs.length);
+  }
+  
   var done = 0;
-  for (var i = 0; i < allConfigs.length; i += PING_CONCURRENCY) {
-    var chunk   = allConfigs.slice(i, i + PING_CONCURRENCY);
+  var total = allConfigs.length;
+  
+  for (var i = 0; i < total; i += PING_CONCURRENCY) {
+    var chunk = allConfigs.slice(i, i + PING_CONCURRENCY);
     var results = await Promise.all(chunk.map(async function(cfg) {
       var ms = await pingOne(cfg.url);
       return { url: cfg.url, ms: ms };
     }));
+    
     results.forEach(function(r) {
-      // keep cached value if new measurement timed out but we had one before
       if (r.ms !== null || pingCache[r.url] === undefined) {
         pingCache[r.url] = r.ms;
       }
     });
+    
     done += chunk.length;
-    showProgress(done, allConfigs.length);
+    if (updateProgress) {
+      showProgress(done, total);
+      updatePreloaderProgress(done, total, 'Проверка пинга серверов...');
+    }
   }
-
-  hideProgress();
+  
+  if (updateProgress) {
+    hideProgress();
+  }
   selectBest();
   setStatus('Обновлено в ' + timeStr(), 'ok');
 }
@@ -633,7 +734,7 @@ function pingCls(ms) {
   return 'ping-bad';
 }
 function pingLbl(ms) {
-  return ms == null ? 'N/A' : ms + '\u202fms';
+  return ms == null ? 'N/A' : ms + ' ms';
 }
 function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -673,7 +774,7 @@ function renderCards() {
 // ── Copy ───────────────────────────────────────────────────────────────────
 var toastTid;
 function copyUrl(url, name) {
-  var done = function(){ toast('✓ ' + name); };
+  var done = function(){ toast('✓ ' + name + ' скопирован'); };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(url).then(done).catch(function(){
       legacyCopy(url); done();
@@ -697,20 +798,46 @@ function toast(msg) {
 // ── UI helpers ─────────────────────────────────────────────────────────────
 function setStatus(text, type) {
   var el = document.getElementById('statusBadge');
-  el.textContent = text;
-  el.className = 'status-badge status-' + type;
+  if (el) {
+    el.textContent = text;
+    el.className = 'status-badge status-' + type;
+  }
 }
 function showProgress(done, total) {
   var row = document.getElementById('pingProgressRow');
-  row.style.display = 'flex';
-  document.getElementById('pingFill').style.width  = (total ? Math.round(done/total*100) : 0) + '%';
-  document.getElementById('pingText').textContent  = done + ' / ' + total;
+  if (row) {
+    row.style.display = 'flex';
+    document.getElementById('pingFill').style.width = (total ? Math.round(done/total*100) : 0) + '%';
+    document.getElementById('pingText').textContent = done + ' / ' + total;
+  }
 }
-function hideProgress() { document.getElementById('pingProgressRow').style.display = 'none'; }
-function showError(msg) { var b = document.getElementById('errorBanner'); b.textContent = msg; b.classList.add('visible'); }
-function hideError()    { document.getElementById('errorBanner').classList.remove('visible'); }
+function hideProgress() { 
+  var row = document.getElementById('pingProgressRow');
+  if (row) row.style.display = 'none'; 
+}
+function showError(msg) { 
+  var b = document.getElementById('errorBanner'); 
+  if (b) {
+    b.textContent = msg; 
+    b.classList.add('visible');
+  }
+}
+function hideError() { 
+  var b = document.getElementById('errorBanner');
+  if (b) b.classList.remove('visible'); 
+}
 function timeStr() {
   return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function updatePreloaderProgress(done, total, text) {
+  if (preloaderFill) {
+    var percent = total ? Math.round(done / total * 100) : 0;
+    preloaderFill.style.width = percent + '%';
+  }
+  if (preloaderText && text) {
+    preloaderText.textContent = text + ' (' + done + '/' + total + ')';
+  }
 }
 
 // ── Countdown 30 min ────────────────────────────────────────────────────────
@@ -722,40 +849,75 @@ function startCountdown() {
     secsLeft--;
     if (secsLeft <= 0) {
       secsLeft = 1800;
-      loadConfigs().then(function(ok){ if (ok) measureAllPings(); });
+      // Refresh in background without preloader
+      loadConfigs().then(function(ok){ 
+        if (ok) measureAllPings(false); 
+      });
     }
     var m = String(Math.floor(secsLeft / 60)).padStart(2, '0');
     var s = String(secsLeft % 60).padStart(2, '0');
-    document.getElementById('countdown').textContent = m + ':' + s;
+    var cdEl = document.getElementById('countdown');
+    if (cdEl) cdEl.textContent = m + ':' + s;
   }, 1000);
 }
 
-// ── Ping re-check every 10 min ─────────────────────────────────────────────
+// ── Ping re-check every 10 min (background) ─────────────────────────────────
 setInterval(function(){
-  if (allConfigs.length) measureAllPings();
+  if (allConfigs.length) measureAllPings(false);
 }, 10 * 60 * 1000);
 
 // ── Footer clock ───────────────────────────────────────────────────────────
 function updateClock() {
   var n = new Date();
-  document.getElementById('footerTime').textContent =
-    n.toLocaleDateString('ru-RU') + '\u2002' +
-    n.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  var ft = document.getElementById('footerTime');
+  if (ft) {
+    ft.textContent = n.toLocaleDateString('ru-RU') + '  ' + n.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  }
 }
 setInterval(updateClock, 60000);
 
 // ── Modal ──────────────────────────────────────────────────────────────────
-function openModal()  { document.getElementById('modalBackdrop').classList.add('open'); }
-function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
-function closeModalBg(e) { if (e.target === document.getElementById('modalBackdrop')) closeModal(); }
-document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
+function openModal()  { 
+  var modal = document.getElementById('modalBackdrop');
+  if (modal) modal.classList.add('open'); 
+}
+function closeModal() { 
+  var modal = document.getElementById('modalBackdrop');
+  if (modal) modal.classList.remove('open'); 
+}
+function closeModalBg(e) { 
+  if (e.target === document.getElementById('modalBackdrop')) closeModal(); 
+}
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.closeModalBg = closeModalBg;
 
-// ── Boot ───────────────────────────────────────────────────────────────────
+// ── Boot with preloader ───────────────────────────────────────────────────
 (async function() {
   updateClock();
-  startCountdown();
+  
+  // Step 1: Load configs
+  preloaderText.textContent = 'Загрузка конфигураций...';
   var ok = await loadConfigs();
-  if (ok) await measureAllPings();
+  
+  if (!ok) {
+    // Show error and still show page
+    preloader.classList.add('hide');
+    mainContent.classList.add('visible');
+    startCountdown();
+    return;
+  }
+  
+  // Step 2: Measure pings with progress
+  preloaderText.textContent = 'Проверка пинга серверов...';
+  await measureAllPings(true);
+  
+  // Step 3: Hide preloader and show content
+  preloader.classList.add('hide');
+  mainContent.classList.add('visible');
+  
+  // Step 4: Start countdown
+  startCountdown();
 })();
 </script>
 </body>
