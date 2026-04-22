@@ -107,6 +107,11 @@
     transition: width 0.2s ease;
     width: 0%;
   }
+  .preloader-stats {
+    font-size: 0.75rem;
+    color: var(--text3);
+    font-family: monospace;
+  }
 
   .main-content {
     opacity: 0;
@@ -277,7 +282,7 @@
   .config-meta { display: flex; align-items: center; justify-content: space-between; }
 
   .ping-badge {
-    display: inline-flex; align-items: center; gap: 5px;
+    display: inline-flex; align-items: center;
     font-size: 0.78rem; font-weight: 500;
     padding: 4px 10px; border-radius: 100px;
   }
@@ -412,6 +417,7 @@
   <div class="preloader-progress">
     <div class="preloader-progress-fill" id="preloaderFill"></div>
   </div>
+  <div class="preloader-stats" id="preloaderStats"></div>
 </div>
 
 <div class="main-content" id="mainContent">
@@ -539,12 +545,19 @@
 var allConfigs = [];
 var pingCache = {};
 var bestConfigs = [];
+var pingAttempts = {}; // track retries for each url
 
 // DOM elements
 var preloader = document.getElementById('preloader');
 var mainContent = document.getElementById('mainContent');
 var preloaderText = document.getElementById('preloaderText');
 var preloaderFill = document.getElementById('preloaderFill');
+var preloaderStats = document.getElementById('preloaderStats');
+
+// Settings
+var MAX_PING_RETRIES = 3;
+var PING_TIMEOUT = 5000;
+var PING_CONCURRENCY = 3;
 
 // Load vpns.txt
 async function loadConfigs() {
@@ -569,6 +582,11 @@ async function loadConfigs() {
       }
     }).filter(function(c) { return c.url; });
 
+    // Initialize ping attempts tracker
+    allConfigs.forEach(function(cfg) {
+      pingAttempts[cfg.url] = 0;
+    });
+
     hideError();
     return true;
   } catch(e) {
@@ -577,11 +595,8 @@ async function loadConfigs() {
   }
 }
 
-// REAL PING using Image object (works without CORS)
-var PING_TIMEOUT = 5000;
-var PING_CONCURRENCY = 3;
-
-function pingUrl(url) {
+// Single ping attempt using Image (most reliable for CORS)
+function pingSingleAttempt(url) {
   return new Promise(function(resolve) {
     var startTime = performance.now();
     var img = new Image();
@@ -598,7 +613,7 @@ function pingUrl(url) {
     
     img.onerror = function() {
       clearTimeout(timeoutId);
-      // Try one more time with a different approach - fetch with no-cors
+      // Fallback to fetch
       fetch(url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
         .then(function() {
           var elapsed = Math.round(performance.now() - startTime);
@@ -609,59 +624,93 @@ function pingUrl(url) {
         });
     };
     
-    // Add cache buster
     var separator = url.indexOf('?') !== -1 ? '&' : '?';
-    img.src = url + separator + 'ping=' + Date.now();
+    img.src = url + separator + 'ping=' + Date.now() + Math.random();
   });
 }
 
+// Ping with retries (up to MAX_PING_RETRIES)
+async function pingWithRetries(url) {
+  for (var attempt = 1; attempt <= MAX_PING_RETRIES; attempt++) {
+    var ms = await pingSingleAttempt(url);
+    if (ms !== null) {
+      return ms;
+    }
+    // Small delay between retries
+    await new Promise(function(r) { setTimeout(r, 500); });
+  }
+  return null;
+}
+
+// Measure all pings with retries for N/A results
 async function measureAllPings(showProgress) {
   if (!allConfigs.length) return;
   
   setStatus('Проверка пинга...', 'scan');
   var total = allConfigs.length;
   var completed = 0;
+  var successCount = 0;
+  var failCount = 0;
   
   if (showProgress) {
     updatePreloaderProgress(0, total, 'Проверка пинга серверов...');
+    if (preloaderStats) preloaderStats.style.display = 'block';
   }
   
+  // Process in batches
   for (var i = 0; i < total; i += PING_CONCURRENCY) {
     var batch = allConfigs.slice(i, i + PING_CONCURRENCY);
     var batchResults = await Promise.all(batch.map(async function(cfg) {
-      var ms = await pingUrl(cfg.url);
+      var ms = await pingWithRetries(cfg.url);
       return { url: cfg.url, ms: ms };
     }));
     
     batchResults.forEach(function(r) {
       pingCache[r.url] = r.ms;
+      if (r.ms !== null) {
+        successCount++;
+      } else {
+        failCount++;
+      }
     });
     
     completed += batch.length;
     if (showProgress) {
       updatePreloaderProgress(completed, total, 'Проверка пинга серверов...');
+      if (preloaderStats) {
+        preloaderStats.textContent = 'Отвечают: ' + successCount + ' | Не отвечают: ' + failCount;
+      }
     }
   }
   
+  if (showProgress && preloaderStats) {
+    setTimeout(function() {
+      preloaderStats.style.display = 'none';
+    }, 1000);
+  }
+  
   setStatus('Готово', 'ok');
+  return { successCount: successCount, failCount: failCount };
 }
 
 // Select best 3 configs by ping (lowest ms)
 function selectBestConfigs() {
-  var configsWithValidPing = allConfigs.filter(function(cfg) {
+  // Get configs with valid ping
+  var configsWithPing = allConfigs.filter(function(cfg) {
     return pingCache[cfg.url] !== null && pingCache[cfg.url] !== undefined;
   });
   
-  configsWithValidPing.sort(function(a, b) {
+  // Sort by ping (lower is better)
+  configsWithPing.sort(function(a, b) {
     return pingCache[a.url] - pingCache[b.url];
   });
   
-  var top3 = configsWithValidPing.slice(0, 3);
+  var top3 = configsWithPing.slice(0, 3);
   
-  // Fill with any configs if less than 3 have valid ping
+  // If less than 3 have ping, add the rest (without ping) at the end
   if (top3.length < 3) {
     var remaining = allConfigs.filter(function(cfg) {
-      return top3.indexOf(cfg) === -1;
+      return pingCache[cfg.url] === null || pingCache[cfg.url] === undefined;
     });
     top3 = top3.concat(remaining.slice(0, 3 - top3.length));
   }
@@ -671,8 +720,6 @@ function selectBestConfigs() {
 }
 
 // Render cards
-var RANKS = ['Первый', 'Второй', 'Третий'];
-
 function getPingClass(ms) {
   if (ms === null || ms === undefined) return 'ping-na';
   if (ms < 80) return 'ping-good';
@@ -705,10 +752,12 @@ function renderCards() {
     var pingMs = pingCache[cfg.url];
     var pingClass = getPingClass(pingMs);
     var pingText = getPingText(pingMs);
-    var rankText = '#' + (idx + 1) + ' ' + RANKS[idx];
+    
+    var rankText = '';
     if (idx === 0) rankText = 'Лучший';
-    if (idx === 1) rankText = 'Второй';
-    if (idx === 2) rankText = 'Третий';
+    else if (idx === 1) rankText = 'Второй';
+    else if (idx === 2) rankText = 'Третий';
+    else rankText = '#' + (idx + 1);
     
     var displayUrl = cfg.url.length > 55 ? cfg.url.substring(0, 52) + '...' : cfg.url;
     
@@ -861,9 +910,12 @@ window.openModal = openModal;
 window.closeModal = closeModal;
 window.closeModalBg = closeModalBg;
 
-// Init
+// Main initialization
 async function init() {
+  // Step 1: Load configs
   updatePreloaderProgress(0, 1, 'Загрузка конфигураций...');
+  if (preloaderStats) preloaderStats.style.display = 'none';
+  
   var loaded = await loadConfigs();
   
   if (!loaded) {
@@ -873,24 +925,38 @@ async function init() {
     return;
   }
   
+  // Step 2: Measure all pings with retries
   await measureAllPings(true);
+  
+  // Step 3: Select best configs by ping
   selectBestConfigs();
+  
+  // Step 4: Render cards
   renderCards();
   
+  // Step 5: Hide preloader and show content
   preloader.classList.add('hide');
   mainContent.classList.add('visible');
+  
+  // Step 6: Start countdown
   startCountdown();
-  setStatus('Готово ' + timeStr(), 'ok');
+  
+  // Step 7: Set final status
+  var withPing = allConfigs.filter(function(c) { return pingCache[c.url] !== null; }).length;
+  setStatus('Готово (' + withPing + '/' + allConfigs.length + ' отвечают)', 'ok');
 }
 
+// Start the app
 init();
 
-// Background ping check every 10 minutes
+// Background ping check every 10 minutes (without preloader)
 setInterval(function() {
   if (allConfigs.length > 0) {
     measureAllPings(false).then(function() {
       selectBestConfigs();
       renderCards();
+      var withPing = allConfigs.filter(function(c) { return pingCache[c.url] !== null; }).length;
+      setStatus('Обновлено (' + withPing + '/' + allConfigs.length + ' отвечают)', 'ok');
     });
   }
 }, 10 * 60 * 1000);
