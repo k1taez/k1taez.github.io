@@ -95,7 +95,7 @@
     color: var(--text2);
   }
   .preloader-progress {
-    width: 200px;
+    width: 280px;
     height: 4px;
     background: var(--card-border);
     border-radius: 4px;
@@ -231,19 +231,6 @@
   }
   #countdown { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 500; }
 
-  .ping-progress {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 0.78rem; color: var(--text3);
-  }
-  .ping-progress-bar {
-    width: 120px; height: 4px;
-    background: var(--card-border); border-radius: 4px; overflow: hidden;
-  }
-  .ping-progress-fill {
-    height: 100%; background: var(--accent); border-radius: 4px;
-    transition: width 0.3s ease; width: 0%;
-  }
-
   .error-banner {
     background: rgba(226,75,74,0.08); border: 1px solid rgba(226,75,74,0.2);
     border-radius: var(--radius-sm); padding: 12px 16px;
@@ -296,7 +283,6 @@
     font-size: 0.78rem; font-weight: 500;
     padding: 4px 10px; border-radius: 100px;
   }
-  .ping-badge.measuring { background: var(--pill-bg); color: var(--accent); animation: blink 1s infinite; }
   .ping-good { background: rgba(21,196,122,0.12); color: var(--good); }
   .ping-warn { background: rgba(245,158,11,0.12); color: var(--warn); }
   .ping-bad  { background: rgba(226,75,74,0.12);  color: #e24b4a; }
@@ -471,14 +457,6 @@
       </svg>
       Обновление через <span id="countdown">30:00</span>
     </div>
-    <div class="ping-progress" id="pingProgressRow" style="display:none">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M2 10 L5 6 L8 9 L11 4 L14 7" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      Проверка пинга
-      <div class="ping-progress-bar"><div class="ping-progress-fill" id="pingFill"></div></div>
-      <span id="pingText">0 / 0</span>
-    </div>
   </div>
   <div class="configs-grid" id="configsGrid">
     <!-- будет заполнено динамически -->
@@ -611,314 +589,359 @@ async function loadConfigs() {
   }
 }
 
-// ── Real ping measurement using Image (most reliable for CORS-free measurement) ──
-// This method works because images don't have CORS restrictions
-var PING_TIMEOUT = 7000;
-var PING_CONCURRENCY = 5;
-
-function pingViaImage(url) {
-  return new Promise(function(resolve) {
-    var img = new Image();
-    var startTime = performance.now();
-    var timeoutId = setTimeout(function() {
-      img.onload = img.onerror = null;
-      resolve(null);
-    }, PING_TIMEOUT);
-    
-    img.onload = function() {
-      clearTimeout(timeoutId);
-      resolve(Math.round(performance.now() - startTime));
-    };
-    img.onerror = function() {
-      clearTimeout(timeoutId);
-      // Try to ping via fetch as fallback for non-image endpoints
-      pingViaFetch(url).then(resolve);
-    };
-    // Add cache-busting for image ping
-    var separator = url.includes('?') ? '&' : '?';
-    img.src = url + separator + 'ping_cache_buster=' + Date.now() + Math.random();
-  });
-}
-
-function pingViaFetch(url) {
-  return new Promise(function(resolve) {
-    var ctrl = new AbortController();
-    var timeoutId = setTimeout(function() { ctrl.abort(); }, PING_TIMEOUT);
-    var startTime = performance.now();
-    
-    fetch(url, {
-      method: 'HEAD',
-      mode: 'no-cors',
-      cache: 'no-store',
-      signal: ctrl.signal
-    }).then(function() {
-      clearTimeout(timeoutId);
-      resolve(Math.round(performance.now() - startTime));
-    }).catch(function() {
-      clearTimeout(timeoutId);
-      resolve(null);
-    });
-  });
-}
+// ── REAL PING MEASUREMENT using fetch with timeout ─────────────────────────
+var PING_TIMEOUT = 5000;  // 5 seconds max per ping
+var PING_CONCURRENCY = 3; // 3 parallel pings at a time
 
 async function pingOne(url) {
-  // Try image method first (most reliable)
-  var ms = await pingViaImage(url);
-  if (ms !== null) return ms;
-  // Fallback to fetch
-  return await pingViaFetch(url);
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() { controller.abort(); }, PING_TIMEOUT);
+  var startTime = performance.now();
+  
+  try {
+    // Try to fetch with no-cors mode - this will still measure connection time
+    await fetch(url, {
+      method: 'GET',
+      mode: 'no-cors',
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    var elapsed = Math.round(performance.now() - startTime);
+    // Cap at timeout - 1 to avoid showing timeout values
+    return elapsed < PING_TIMEOUT ? elapsed : null;
+  } catch(e) {
+    clearTimeout(timeoutId);
+    // If fetch fails, we still might get a timing if it was a network error
+    // For no-cors, opaque responses don't trigger errors usually
+    if (e.name === 'AbortError') {
+      return null;
+    }
+    // Some endpoints might block fetch, try HEAD as fallback
+    try {
+      var controller2 = new AbortController();
+      var timeoutId2 = setTimeout(function() { controller2.abort(); }, PING_TIMEOUT);
+      var startTime2 = performance.now();
+      await fetch(url, {
+        method: 'HEAD',
+        mode: 'no-cors',
+        cache: 'no-store',
+        signal: controller2.signal
+      });
+      clearTimeout(timeoutId2);
+      return Math.round(performance.now() - startTime2);
+    } catch(e2) {
+      return null;
+    }
+  }
 }
 
-async function measureAllPings(updateProgress) {
-  if (!allConfigs.length) return;
+async function measureAllPings(showProgress) {
+  if (!allConfigs.length) return [];
   
-  setStatus('Проверка пинга...', 'scan');
-  if (updateProgress) {
-    showProgress(0, allConfigs.length);
+  if (showProgress) {
+    setStatus('Проверка пинга...', 'scan');
+    updatePreloaderProgress(0, allConfigs.length, 'Проверка пинга серверов...');
   }
   
-  var done = 0;
+  var results = [];
+  var completed = 0;
   var total = allConfigs.length;
   
+  // Process in batches to avoid overwhelming the browser
   for (var i = 0; i < total; i += PING_CONCURRENCY) {
-    var chunk = allConfigs.slice(i, i + PING_CONCURRENCY);
-    var results = await Promise.all(chunk.map(async function(cfg) {
+    var batch = allConfigs.slice(i, i + PING_CONCURRENCY);
+    var batchResults = await Promise.all(batch.map(async function(cfg) {
       var ms = await pingOne(cfg.url);
       return { url: cfg.url, ms: ms };
     }));
     
-    results.forEach(function(r) {
-      if (r.ms !== null || pingCache[r.url] === undefined) {
-        pingCache[r.url] = r.ms;
-      }
+    batchResults.forEach(function(r) {
+      pingCache[r.url] = r.ms;
+      results.push(r);
     });
     
-    done += chunk.length;
-    if (updateProgress) {
-      showProgress(done, total);
-      updatePreloaderProgress(done, total, 'Проверка пинга серверов...');
+    completed += batch.length;
+    if (showProgress) {
+      updatePreloaderProgress(completed, total, 'Проверка пинга серверов...');
     }
   }
   
-  if (updateProgress) {
-    hideProgress();
+  if (showProgress) {
+    setStatus('Готово', 'ok');
   }
-  selectBest();
-  setStatus('Обновлено в ' + timeStr(), 'ok');
+  
+  return results;
 }
 
-// ── Select best 3 ─────────────────────────────────────────────────────────
-function selectBest() {
-  var withPing = allConfigs.filter(function(c){
-    return typeof pingCache[c.url] === 'number';
+// ── Select best 3 by ping (lowest ms) ─────────────────────────────────────
+function selectBestConfigs() {
+  // Get all configs that have a valid ping
+  var configsWithPing = allConfigs.filter(function(cfg) {
+    return typeof pingCache[cfg.url] === 'number';
   });
-  withPing.sort(function(a, b){
+  
+  // Sort by ping (lower is better)
+  configsWithPing.sort(function(a, b) {
     return pingCache[a.url] - pingCache[b.url];
   });
-  var top = withPing.slice(0, 3);
-  if (top.length < 3) {
-    var rest = allConfigs.filter(function(c){ return pingCache[c.url] == null; });
-    top = top.concat(rest).slice(0, 3);
+  
+  // Take top 3
+  var top3 = configsWithPing.slice(0, 3);
+  
+  // If we have less than 3 with ping, add some without ping
+  if (top3.length < 3) {
+    var configsWithoutPing = allConfigs.filter(function(cfg) {
+      return typeof pingCache[cfg.url] !== 'number';
+    });
+    var needed = 3 - top3.length;
+    top3 = top3.concat(configsWithoutPing.slice(0, needed));
   }
-  bestConfigs = top;
-  renderCards();
+  
+  bestConfigs = top3;
+  return bestConfigs;
 }
 
-// ── Render ─────────────────────────────────────────────────────────────────
-var RANKS = ['#1 Лучший', '#2 Второй', '#3 Третий'];
+// ── Render cards with ping badges ─────────────────────────────────────────
+var RANKS = ['🥇 Лучший', '🥈 Второй', '🥉 Третий'];
 
-function pingCls(ms) {
-  if (ms == null)  return 'ping-na';
-  if (ms < 80)     return 'ping-good';
-  if (ms < 200)    return 'ping-warn';
+function getPingClass(ms) {
+  if (ms === null || ms === undefined) return 'ping-na';
+  if (ms < 80) return 'ping-good';
+  if (ms < 200) return 'ping-warn';
   return 'ping-bad';
 }
-function pingLbl(ms) {
-  return ms == null ? 'N/A' : ms + ' ms';
+
+function getPingText(ms) {
+  if (ms === null || ms === undefined) return '⏳ N/A';
+  return '📡 ' + ms + ' ms';
 }
-function esc(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function renderCards() {
   var grid = document.getElementById('configsGrid');
-  if (!bestConfigs.length) {
-    grid.innerHTML = '<div style="color:var(--text3);font-size:.88rem;grid-column:1/-1">Нет конфигов для отображения.</div>';
+  if (!grid) return;
+  
+  if (bestConfigs.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text3);">Нет доступных конфигов</div>';
     return;
   }
+  
   grid.innerHTML = '';
-  bestConfigs.forEach(function(cfg, i) {
-    var ms  = pingCache[cfg.url];
-    var el  = document.createElement('div');
-    el.className = 'config-card';
-    el.style.animation = 'fadeUp .5s ease ' + (i * .07) + 's both';
-    el.innerHTML =
-      '<div class="config-rank">' + (RANKS[i] || '#' + (i+1)) + '</div>' +
-      '<div class="config-name">' + esc(cfg.name) + '</div>' +
-      '<div class="config-url">'  + esc(cfg.url)  + '</div>' +
-      '<div class="config-meta">' +
-        '<span class="ping-badge ' + pingCls(ms) + '">' + pingLbl(ms) + '</span>' +
-        '<span class="copy-hint">' +
-          '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">' +
-            '<rect x="5" y="5" width="8" height="9" rx="2"/>' +
-            '<path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v7A1.5 1.5 0 0 0 3.5 12H5"/>' +
-          '</svg>' +
-          'Нажмите, чтобы скопировать' +
-        '</span>' +
-      '</div>';
-    el.addEventListener('click', function(){ copyUrl(cfg.url, cfg.name); });
-    grid.appendChild(el);
+  
+  bestConfigs.forEach(function(cfg, index) {
+    var pingMs = pingCache[cfg.url];
+    var pingClass = getPingClass(pingMs);
+    var pingText = getPingText(pingMs);
+    
+    var card = document.createElement('div');
+    card.className = 'config-card';
+    card.style.animation = 'fadeUp 0.4s ease ' + (index * 0.1) + 's both';
+    
+    card.innerHTML = `
+      <div class="config-rank">${RANKS[index] || '#' + (index + 1)}</div>
+      <div class="config-name">${escapeHtml(cfg.name)}</div>
+      <div class="config-url">${escapeHtml(cfg.url.substring(0, 60))}${cfg.url.length > 60 ? '...' : ''}</div>
+      <div class="config-meta">
+        <span class="ping-badge ${pingClass}">${pingText}</span>
+        <span class="copy-hint">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="5" y="5" width="9" height="9" rx="1.5"></rect>
+            <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v7A1.5 1.5 0 0 0 3.5 12H5"></path>
+          </svg>
+          Копировать
+        </span>
+      </div>
+    `;
+    
+    card.addEventListener('click', (function(url, name) {
+      return function() { copyToClipboard(url, name); };
+    })(cfg.url, cfg.name));
+    
+    grid.appendChild(card);
   });
 }
 
-// ── Copy ───────────────────────────────────────────────────────────────────
-var toastTid;
-function copyUrl(url, name) {
-  var done = function(){ toast('✓ ' + name + ' скопирован'); };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(done).catch(function(){
-      legacyCopy(url); done();
-    });
-  } else { legacyCopy(url); done(); }
-}
-function legacyCopy(text) {
-  var ta = document.createElement('textarea');
-  ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
-  document.body.appendChild(ta); ta.select();
-  document.execCommand('copy');
-  document.body.removeChild(ta);
-}
-function toast(msg) {
-  var t = document.getElementById('copyToast');
-  t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastTid);
-  toastTid = setTimeout(function(){ t.classList.remove('show'); }, 2600);
+// ── Copy to clipboard ──────────────────────────────────────────────────────
+var toastTimeout;
+
+function copyToClipboard(text, name) {
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('✅ ' + name + ' скопирован');
+  }).catch(function() {
+    // Fallback
+    var textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast('✅ ' + name + ' скопирован');
+  });
 }
 
-// ── UI helpers ─────────────────────────────────────────────────────────────
+function showToast(message) {
+  var toast = document.getElementById('copyToast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(function() {
+    toast.classList.remove('show');
+  }, 2000);
+}
+
+// ── UI Helpers ────────────────────────────────────────────────────────────
 function setStatus(text, type) {
-  var el = document.getElementById('statusBadge');
-  if (el) {
-    el.textContent = text;
-    el.className = 'status-badge status-' + type;
+  var badge = document.getElementById('statusBadge');
+  if (badge) {
+    badge.textContent = text;
+    badge.className = 'status-badge status-' + type;
   }
 }
-function showProgress(done, total) {
-  var row = document.getElementById('pingProgressRow');
-  if (row) {
-    row.style.display = 'flex';
-    document.getElementById('pingFill').style.width = (total ? Math.round(done/total*100) : 0) + '%';
-    document.getElementById('pingText').textContent = done + ' / ' + total;
+
+function showError(msg) {
+  var banner = document.getElementById('errorBanner');
+  if (banner) {
+    banner.textContent = msg;
+    banner.classList.add('visible');
   }
 }
-function hideProgress() { 
-  var row = document.getElementById('pingProgressRow');
-  if (row) row.style.display = 'none'; 
-}
-function showError(msg) { 
-  var b = document.getElementById('errorBanner'); 
-  if (b) {
-    b.textContent = msg; 
-    b.classList.add('visible');
+
+function hideError() {
+  var banner = document.getElementById('errorBanner');
+  if (banner) {
+    banner.classList.remove('visible');
   }
 }
-function hideError() { 
-  var b = document.getElementById('errorBanner');
-  if (b) b.classList.remove('visible'); 
+
+function updatePreloaderProgress(current, total, text) {
+  if (preloaderFill) {
+    var percent = total > 0 ? (current / total) * 100 : 0;
+    preloaderFill.style.width = percent + '%';
+  }
+  if (preloaderText && text) {
+    preloaderText.textContent = text + ' (' + current + '/' + total + ')';
+  }
 }
+
 function timeStr() {
   return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-function updatePreloaderProgress(done, total, text) {
-  if (preloaderFill) {
-    var percent = total ? Math.round(done / total * 100) : 0;
-    preloaderFill.style.width = percent + '%';
-  }
-  if (preloaderText && text) {
-    preloaderText.textContent = text + ' (' + done + '/' + total + ')';
-  }
-}
+// ── Countdown timer for auto-refresh (30 min) ─────────────────────────────
+var countdownInterval;
+var secondsLeft = 1800;
 
-// ── Countdown 30 min ────────────────────────────────────────────────────────
-var secsLeft = 1800, cdTid;
 function startCountdown() {
-  clearInterval(cdTid);
-  secsLeft = 1800;
-  cdTid = setInterval(function() {
-    secsLeft--;
-    if (secsLeft <= 0) {
-      secsLeft = 1800;
-      // Refresh in background without preloader
-      loadConfigs().then(function(ok){ 
-        if (ok) measureAllPings(false); 
-      });
+  if (countdownInterval) clearInterval(countdownInterval);
+  secondsLeft = 1800;
+  
+  countdownInterval = setInterval(function() {
+    secondsLeft--;
+    var minutes = Math.floor(secondsLeft / 60);
+    var secs = secondsLeft % 60;
+    var countdownEl = document.getElementById('countdown');
+    if (countdownEl) {
+      countdownEl.textContent = String(minutes).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
     }
-    var m = String(Math.floor(secsLeft / 60)).padStart(2, '0');
-    var s = String(secsLeft % 60).padStart(2, '0');
-    var cdEl = document.getElementById('countdown');
-    if (cdEl) cdEl.textContent = m + ':' + s;
+    
+    if (secondsLeft <= 0) {
+      clearInterval(countdownInterval);
+      refreshAll();
+    }
   }, 1000);
 }
 
-// ── Ping re-check every 10 min (background) ─────────────────────────────────
-setInterval(function(){
-  if (allConfigs.length) measureAllPings(false);
-}, 10 * 60 * 1000);
+// ── Refresh all data (background refresh) ─────────────────────────────────
+async function refreshAll() {
+  setStatus('Обновление...', 'load');
+  await loadConfigs();
+  await measureAllPings(false);
+  selectBestConfigs();
+  renderCards();
+  setStatus('Обновлено ' + timeStr(), 'ok');
+  startCountdown();
+}
 
-// ── Footer clock ───────────────────────────────────────────────────────────
-function updateClock() {
-  var n = new Date();
-  var ft = document.getElementById('footerTime');
-  if (ft) {
-    ft.textContent = n.toLocaleDateString('ru-RU') + '  ' + n.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+// ── Footer clock ──────────────────────────────────────────────────────────
+function updateFooterClock() {
+  var footerTime = document.getElementById('footerTime');
+  if (footerTime) {
+    var now = new Date();
+    footerTime.textContent = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   }
 }
-setInterval(updateClock, 60000);
+setInterval(updateFooterClock, 1000);
+updateFooterClock();
 
-// ── Modal ──────────────────────────────────────────────────────────────────
-function openModal()  { 
-  var modal = document.getElementById('modalBackdrop');
-  if (modal) modal.classList.add('open'); 
+// ── Modal functions ────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('modalBackdrop').classList.add('open');
 }
-function closeModal() { 
-  var modal = document.getElementById('modalBackdrop');
-  if (modal) modal.classList.remove('open'); 
+
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('open');
 }
-function closeModalBg(e) { 
-  if (e.target === document.getElementById('modalBackdrop')) closeModal(); 
+
+function closeModalBg(event) {
+  if (event.target === document.getElementById('modalBackdrop')) {
+    closeModal();
+  }
 }
+
+// Expose functions globally
 window.openModal = openModal;
 window.closeModal = closeModal;
 window.closeModalBg = closeModalBg;
 
-// ── Boot with preloader ───────────────────────────────────────────────────
-(async function() {
-  updateClock();
-  
+// ── Initialization with preloader ─────────────────────────────────────────
+async function init() {
   // Step 1: Load configs
-  preloaderText.textContent = 'Загрузка конфигураций...';
-  var ok = await loadConfigs();
+  updatePreloaderProgress(0, 1, 'Загрузка конфигураций...');
+  var loaded = await loadConfigs();
   
-  if (!ok) {
-    // Show error and still show page
+  if (!loaded) {
     preloader.classList.add('hide');
     mainContent.classList.add('visible');
     startCountdown();
     return;
   }
   
-  // Step 2: Measure pings with progress
-  preloaderText.textContent = 'Проверка пинга серверов...';
+  // Step 2: Measure pings for all configs
   await measureAllPings(true);
   
-  // Step 3: Hide preloader and show content
+  // Step 3: Select best 3 by ping
+  selectBestConfigs();
+  
+  // Step 4: Render cards
+  renderCards();
+  
+  // Step 5: Hide preloader and show content
   preloader.classList.add('hide');
   mainContent.classList.add('visible');
   
-  // Step 4: Start countdown
+  // Step 6: Start countdown
   startCountdown();
-})();
+  
+  // Step 7: Set status
+  setStatus('Готово ' + timeStr(), 'ok');
+}
+
+// Start the app
+init();
+
+// Background ping check every 10 minutes
+setInterval(function() {
+  if (allConfigs.length > 0) {
+    measureAllPings(false).then(function() {
+      selectBestConfigs();
+      renderCards();
+    });
+  }
+}, 10 * 60 * 1000);
 </script>
 </body>
 </html>
