@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VPNHub — Быстрый доступ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg2: #f4f6fb;
+    --bg3: #eaeffa;
+    --text: #0a0f1e;
+    --text2: #3a4560;
+    --text3: #7a87a8;
+    --accent: #1a3aff;
+    --accent2: #0025cc;
+    --accent-glow: rgba(26,58,255,0.13);
+    --card: #ffffff;
+    --card-border: rgba(26,58,255,0.13);
+    --pill-bg: rgba(26,58,255,0.08);
+    --overlay: rgba(10,15,30,0.45);
+    --shadow: 0 8px 40px rgba(26,58,255,0.10);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --transition: 0.28s cubic-bezier(0.4,0,0.2,1);
+    --good: #15c47a;
+    --warn: #f59e0b;
+    --na: #7a87a8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #080d1c;
+      --bg2: #0f1529;
+      --bg3: #141c38;
+      --text: #eef1ff;
+      --text2: #9aabd4;
+      --text3: #4a5a80;
+      --accent: #4d70ff;
+      --accent2: #7a9aff;
+      --accent-glow: rgba(77,112,255,0.18);
+      --card: #101828;
+      --card-border: rgba(77,112,255,0.18);
+      --pill-bg: rgba(77,112,255,0.12);
+      --overlay: rgba(8,13,28,0.75);
+      --shadow: 0 8px 40px rgba(0,0,0,0.5);
+      --good: #22d98a;
+      --warn: #fbbf24;
+      --na: #4a5a80;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255,255,255,0.82);
+    border-bottom: 1px solid var(--card-border);
+    padding: 0 max(2rem, calc((100vw - 1200px)/2));
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    animation: slideDown 0.5s ease;
+  }
+  @media (prefers-color-scheme: dark) { header { background: rgba(8,13,28,0.82); } }
+
+  @keyframes slideDown {
+    from { transform: translateY(-100%); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(28px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes pulseDot {
+    0%,100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+    50%      { box-shadow: 0 0 0 6px transparent; }
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 1.4rem;
+    color: var(--text); letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .logo-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent);
+    animation: pulseDot 2s infinite;
+  }
+
+  .btn-dl {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #fff; border: none;
+    border-radius: var(--radius-sm); padding: 9px 20px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.92rem; font-weight: 500;
+    cursor: pointer;
+    transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+  }
+  .btn-dl:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 6px 24px var(--accent-glow); }
+  .btn-dl:active { transform: scale(0.97); }
+  .btn-dl svg { width: 16px; height: 16px; }
+
+  .hero {
+    text-align: center;
+    padding: 80px max(2rem, calc((100vw - 1200px)/2)) 48px;
+    animation: fadeUp 0.7s ease 0.1s both;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--pill-bg); border: 1px solid var(--card-border);
+    border-radius: 100px; padding: 5px 14px;
+    font-size: 0.78rem; color: var(--accent); margin-bottom: 24px; font-weight: 500;
+  }
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    font-weight: 800; line-height: 1.12; color: var(--text);
+    margin-bottom: 16px; letter-spacing: -1px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero p { font-size: 1.05rem; color: var(--text2); max-width: 520px; margin: 0 auto; line-height: 1.7; }
+  .hero code {
+    font-family: monospace; font-size: 0.9em;
+    background: var(--pill-bg); color: var(--accent);
+    border-radius: 5px; padding: 1px 6px;
+  }
+
+  .section {
+    padding: 0 max(2rem, calc((100vw - 1200px)/2)) 64px;
+    animation: fadeUp 0.7s ease 0.2s both;
+  }
+  .section-label { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .section-label h2 {
+    font-family: 'Syne', sans-serif; font-size: 1.25rem;
+    font-weight: 700; color: var(--text);
+  }
+
+  .status-badge {
+    font-size: 0.72rem; border-radius: 100px; padding: 3px 10px;
+    font-weight: 500; display: flex; align-items: center; gap: 5px;
+    transition: all 0.3s;
+  }
+  .status-badge::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; animation: blink 1.5s infinite;
+  }
+  .status-ok      { color: var(--good); background: rgba(21,196,122,0.1); }
+  .status-scan    { color: var(--warn); background: rgba(245,158,11,0.1); }
+  .status-load    { color: var(--accent); background: var(--pill-bg); }
+  .status-error   { color: #e24b4a; background: rgba(226,75,74,0.1); }
+
+  .timer-row {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 28px; flex-wrap: wrap;
+  }
+  .timer-text {
+    font-size: 0.78rem; color: var(--text3);
+    display: flex; align-items: center; gap: 6px;
+  }
+  #countdown { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 500; }
+
+  .ping-progress {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.78rem; color: var(--text3);
+  }
+  .ping-progress-bar {
+    width: 120px; height: 4px;
+    background: var(--card-border); border-radius: 4px; overflow: hidden;
+  }
+  .ping-progress-fill {
+    height: 100%; background: var(--accent); border-radius: 4px;
+    transition: width 0.3s ease; width: 0%;
+  }
+
+  .error-banner {
+    background: rgba(226,75,74,0.08); border: 1px solid rgba(226,75,74,0.2);
+    border-radius: var(--radius-sm); padding: 12px 16px;
+    font-size: 0.83rem; color: #e24b4a; margin-bottom: 20px; display: none;
+  }
+  .error-banner.visible { display: block; }
+
+  .configs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 720px) { .configs-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 960px) and (min-width: 721px) { .configs-grid { grid-template-columns: 1fr 1fr; } }
+
+  .config-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: var(--radius); padding: 20px; cursor: pointer;
+    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+    position: relative; overflow: hidden;
+  }
+  .config-card::before {
+    content: ''; position: absolute; inset: 0;
+    background: var(--accent-glow); opacity: 0;
+    transition: opacity var(--transition); pointer-events: none;
+  }
+  .config-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: var(--accent); }
+  .config-card:hover::before { opacity: 1; }
+  .config-card:active { transform: scale(0.98); }
+  .config-card.skeleton { pointer-events: none; }
+
+  .skel {
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    margin-bottom: 10px;
+  }
+  .skel.h14 { height: 14px; }
+  .skel.h24 { height: 24px; }
+  .skel.w40 { width: 40%; }
+  .skel.w65 { width: 65%; }
+  .skel.w100{ width: 100%; }
+  .skel.pill{ border-radius: 100px; width: 70px; margin-bottom: 0; }
+
+  .config-rank {
+    font-family: 'Syne', sans-serif; font-size: 0.72rem;
+    font-weight: 700; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;
+  }
+  .config-name {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem;
+    color: var(--text); margin-bottom: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .config-url {
+    font-size: 0.75rem; color: var(--text3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 16px;
+  }
+  .config-meta { display: flex; align-items: center; justify-content: space-between; }
+
+  .ping-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.78rem; font-weight: 500;
+    padding: 4px 10px; border-radius: 100px;
+  }
+  .ping-badge.measuring { background: var(--pill-bg); color: var(--accent); animation: blink 1s infinite; }
+  .ping-good { background: rgba(21,196,122,0.12); color: var(--good); }
+  .ping-warn { background: rgba(245,158,11,0.12); color: var(--warn); }
+  .ping-bad  { background: rgba(226,75,74,0.12);  color: #e24b4a; }
+  .ping-na   { background: rgba(122,135,168,0.12); color: var(--na); }
+
+  .copy-hint {
+    font-size: 0.72rem; color: var(--text3);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .copy-hint svg { width: 13px; height: 13px; }
+
+  .copy-toast {
+    position: fixed; bottom: 32px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--accent); color: #fff;
+    padding: 10px 22px; border-radius: 100px;
+    font-size: 0.88rem; font-weight: 500; z-index: 200;
+    transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.35s;
+    opacity: 0; pointer-events: none; white-space: nowrap;
+  }
+  .copy-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  .divider {
+    margin: 0 max(2rem, calc((100vw - 1200px)/2)) 48px;
+    height: 1px; background: var(--card-border);
+  }
+
+  .tutorial-section {
+    padding: 0 max(2rem, calc((100vw - 1200px)/2)) 80px;
+    animation: fadeUp 0.7s ease 0.3s both;
+  }
+  .tutorial-section h2 {
+    font-family: 'Syne', sans-serif; font-size: 1.25rem;
+    font-weight: 700; color: var(--text); margin-bottom: 28px;
+  }
+  .steps { display: flex; flex-direction: column; gap: 0; max-width: 680px; }
+  .step { display: flex; gap: 20px; position: relative; }
+  .step:not(:last-child)::after {
+    content: ''; position: absolute;
+    left: 19px; top: 40px; bottom: -16px;
+    width: 2px; background: var(--card-border);
+  }
+  .step-num {
+    flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+    background: var(--pill-bg); border: 1.5px solid var(--card-border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 0.85rem;
+    color: var(--accent); margin-top: 2px;
+  }
+  .step-body { flex: 1; padding-bottom: 28px; }
+  .step-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.98rem; color: var(--text); margin-bottom: 5px; }
+  .step-desc  { font-size: 0.88rem; color: var(--text2); line-height: 1.65; }
+  .step-tag   {
+    display: inline-block; background: var(--pill-bg); color: var(--accent);
+    border-radius: 6px; padding: 1px 8px; font-size: 0.8rem; font-weight: 500;
+  }
+
+  footer {
+    border-top: 1px solid var(--card-border);
+    padding: 20px max(2rem, calc((100vw - 1200px)/2));
+    font-size: 0.8rem; color: var(--text3);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: var(--overlay); z-index: 300;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  }
+  .modal-backdrop.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 20px; padding: 28px 24px 20px; width: min(380px, 92vw);
+    transform: scale(0.92) translateY(16px);
+    transition: transform 0.3s cubic-bezier(0.34,1.4,0.64,1);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.25);
+  }
+  .modal-backdrop.open .modal { transform: scale(1) translateY(0); }
+  .modal h3 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.05rem; margin-bottom: 6px; color: var(--text); }
+  .modal p  { font-size: 0.83rem; color: var(--text3); margin-bottom: 20px; }
+  .platform-btns { display: flex; flex-direction: column; gap: 10px; }
+  .platform-btn {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-radius: var(--radius-sm);
+    border: 1px solid var(--card-border); background: transparent;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; color: var(--text); text-decoration: none;
+    transition: background var(--transition), border-color var(--transition), transform var(--transition);
+  }
+  .platform-btn:hover { background: var(--pill-bg); border-color: var(--accent); transform: translateX(4px); }
+  .platform-btn:active { transform: scale(0.98); }
+  .platform-btn-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--pill-bg); font-size: 1.1rem; flex-shrink: 0;
+  }
+  .platform-btn-text strong { display: block; font-size: 0.92rem; font-weight: 500; color: var(--text); }
+  .platform-btn-text span   { font-size: 0.76rem; color: var(--text3); }
+  .modal-close {
+    width: 100%; margin-top: 12px; padding: 10px; background: none; border: none;
+    cursor: pointer; color: var(--text3); font-size: 0.82rem;
+    font-family: 'DM Sans', sans-serif; border-radius: var(--radius-sm);
+    transition: color var(--transition), background var(--transition);
+  }
+  .modal-close:hover { color: var(--text); background: var(--bg2); }
+
+  .bg-grid {
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--card-border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--card-border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    z-index: -1; opacity: 0.45; pointer-events: none;
+  }
+  .bg-radial {
+    position: fixed; width: 60vw; height: 60vw; border-radius: 50%;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    top: -20vw; left: -10vw; z-index: -1; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-radial"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo"><span class="logo-dot"></span>VPNHub</div>
+  <button class="btn-dl" onclick="openModal()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M8 2v8M5 7l3 3 3-3M3 12h10"/>
+    </svg>
+    Скачать HAPP
+  </button>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">
+    <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>
+    Автоматический выбор лучших серверов
+  </div>
+  <h1>Быстрый <span>VPN</span><br>без лишних настроек</h1>
+  <p>Конфиги берутся из <code>vpns.txt</code>. Пинг проверяется каждые 10 минут, лучшие 3 обновляются каждые 30 минут.</p>
+</section>
+
+<!-- CONFIGS -->
+<section class="section">
+  <div class="section-label">
+    <h2>Лучшие конфиги</h2>
+    <div class="status-badge status-load" id="statusBadge">Загрузка...</div>
+  </div>
+  <div class="error-banner" id="errorBanner"></div>
+  <div class="timer-row">
+    <div class="timer-text">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 2" stroke-linecap="round"/>
+      </svg>
+      Обновление через <span id="countdown">30:00</span>
+    </div>
+    <div class="ping-progress" id="pingProgressRow" style="display:none">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M2 10 L5 6 L8 9 L11 4 L14 7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Проверка пинга
+      <div class="ping-progress-bar"><div class="ping-progress-fill" id="pingFill"></div></div>
+      <span id="pingText">0 / 0</span>
+    </div>
+  </div>
+  <div class="configs-grid" id="configsGrid">
+    <div class="config-card skeleton"><div class="skel h14 w40"></div><div class="skel h14 w65"></div><div class="skel h14 w100"></div><div class="skel h24 pill"></div></div>
+    <div class="config-card skeleton"><div class="skel h14 w40"></div><div class="skel h14 w65"></div><div class="skel h14 w100"></div><div class="skel h24 pill"></div></div>
+    <div class="config-card skeleton"><div class="skel h14 w40"></div><div class="skel h14 w65"></div><div class="skel h14 w100"></div><div class="skel h24 pill"></div></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- TUTORIAL -->
+<section class="tutorial-section">
+  <h2>Как подключиться</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Скачайте приложение HAPP</div>
+        <div class="step-desc">Нажмите «Скачать HAPP» в шапке и выберите платформу — Windows, Android или iOS.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Войдите в приложение</div>
+        <div class="step-desc">Откройте HAPP и выполните первоначальный вход.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Разрешите конфигурацию VPN</div>
+        <div class="step-desc">При первом запуске нажмите «Разрешить» — система попросит создать VPN-профиль.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Нажмите <span class="step-tag">+</span> в левом верхнем углу</div>
+        <div class="step-desc">Откроется форма добавления новой подписки.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="step-title">Введите название</div>
+        <div class="step-desc">В поле «Название» напишите что угодно, например <span class="step-tag">VPNHub</span>.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <div class="step-title">Вставьте URL подписки</div>
+        <div class="step-desc">В поле «URL подписки» вставьте скопированный URL из карточки выше. Готово — подключайтесь!</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>VPNHub — автоматический подбор конфигов</span>
+  <span id="footerTime"></span>
+</footer>
+
+<div class="copy-toast" id="copyToast"></div>
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeModalBg(event)">
+  <div class="modal">
+    <h3>Скачать HAPP</h3>
+    <p>Выберите вашу платформу</p>
+    <div class="platform-btns">
+      <a class="platform-btn" href="happ-setup.exe" download onclick="closeModal()">
+        <div class="platform-btn-icon">🪟</div>
+        <div class="platform-btn-text"><strong>Windows</strong><span>Загрузить .exe установщик</span></div>
+      </a>
+      <a class="platform-btn" href="happ.apk" download onclick="closeModal()">
+        <div class="platform-btn-icon">🤖</div>
+        <div class="platform-btn-text"><strong>Android</strong><span>Загрузить .apk файл</span></div>
+      </a>
+      <a class="platform-btn" href="https://apps.apple.com/app/happ/id6476192918" target="_blank" rel="noopener" onclick="closeModal()">
+        <div class="platform-btn-icon">🍎</div>
+        <div class="platform-btn-text"><strong>iOS</strong><span>Открыть в App Store</span></div>
+      </a>
+    </div>
+    <button class="modal-close" onclick="closeModal()">Закрыть</button>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+var allConfigs  = [];   // {name, url}
+var pingCache   = {};   // url → ms (number) | null (timeout/error)
+var bestConfigs = [];
+
+// ── Load vpns.txt ──────────────────────────────────────────────────────────
+async function loadConfigs() {
+  try {
+    var res = await fetch('vpns.txt?nc=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var text = await res.text();
+    var lines = text.split('\n')
+      .map(function(l){ return l.trim(); })
+      .filter(function(l){ return l && l[0] !== '#'; });
+
+    allConfigs = lines.map(function(line) {
+      if (line.indexOf('|') !== -1) {
+        var sep = line.indexOf('|');
+        return { name: line.slice(0, sep).trim(), url: line.slice(sep + 1).trim() };
+      }
+      try {
+        var u = new URL(line);
+        return { name: u.hostname, url: line };
+      } catch(e) {
+        return { name: line.slice(0, 40), url: line };
+      }
+    }).filter(function(c){ return c.url; });
+
+    hideError();
+    return true;
+  } catch(e) {
+    showError('Не удалось загрузить vpns.txt: ' + e.message +
+      '. Файл должен лежать рядом с index.html. Откройте сайт через веб-сервер, а не через file://');
+    return false;
+  }
+}
+
+// ── Real ping ─────────────────────────────────────────────────────────────
+// Browser can't do ICMP. We measure TTFB via fetch with no-cors.
+// Works for HTTP/HTTPS endpoints that are reachable. CORS blocks still
+// return an opaque response timing on most browsers.
+var PING_TIMEOUT     = 7000;  // ms per request
+var PING_CONCURRENCY = 5;     // parallel
+
+async function pingOne(url) {
+  var ctrl = new AbortController();
+  var tid  = setTimeout(function(){ ctrl.abort(); }, PING_TIMEOUT);
+  var t0   = performance.now();
+  try {
+    await fetch(url, {
+      method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: ctrl.signal
+    });
+    clearTimeout(tid);
+    return Math.round(performance.now() - t0);
+  } catch(e) {
+    clearTimeout(tid);
+    if (e.name === 'AbortError') return null;
+    // For opaque no-cors, a network error means truly unreachable
+    return null;
+  }
+}
+
+async function measureAllPings() {
+  if (!allConfigs.length) return;
+  setStatus('Проверка пинга...', 'scan');
+  showProgress(0, allConfigs.length);
+
+  var done = 0;
+  for (var i = 0; i < allConfigs.length; i += PING_CONCURRENCY) {
+    var chunk   = allConfigs.slice(i, i + PING_CONCURRENCY);
+    var results = await Promise.all(chunk.map(async function(cfg) {
+      var ms = await pingOne(cfg.url);
+      return { url: cfg.url, ms: ms };
+    }));
+    results.forEach(function(r) {
+      // keep cached value if new measurement timed out but we had one before
+      if (r.ms !== null || pingCache[r.url] === undefined) {
+        pingCache[r.url] = r.ms;
+      }
+    });
+    done += chunk.length;
+    showProgress(done, allConfigs.length);
+  }
+
+  hideProgress();
+  selectBest();
+  setStatus('Обновлено в ' + timeStr(), 'ok');
+}
+
+// ── Select best 3 ─────────────────────────────────────────────────────────
+function selectBest() {
+  var withPing = allConfigs.filter(function(c){
+    return typeof pingCache[c.url] === 'number';
+  });
+  withPing.sort(function(a, b){
+    return pingCache[a.url] - pingCache[b.url];
+  });
+  var top = withPing.slice(0, 3);
+  if (top.length < 3) {
+    var rest = allConfigs.filter(function(c){ return pingCache[c.url] == null; });
+    top = top.concat(rest).slice(0, 3);
+  }
+  bestConfigs = top;
+  renderCards();
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+var RANKS = ['#1 Лучший', '#2 Второй', '#3 Третий'];
+
+function pingCls(ms) {
+  if (ms == null)  return 'ping-na';
+  if (ms < 80)     return 'ping-good';
+  if (ms < 200)    return 'ping-warn';
+  return 'ping-bad';
+}
+function pingLbl(ms) {
+  return ms == null ? 'N/A' : ms + '\u202fms';
+}
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderCards() {
+  var grid = document.getElementById('configsGrid');
+  if (!bestConfigs.length) {
+    grid.innerHTML = '<div style="color:var(--text3);font-size:.88rem;grid-column:1/-1">Нет конфигов для отображения.</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  bestConfigs.forEach(function(cfg, i) {
+    var ms  = pingCache[cfg.url];
+    var el  = document.createElement('div');
+    el.className = 'config-card';
+    el.style.animation = 'fadeUp .5s ease ' + (i * .07) + 's both';
+    el.innerHTML =
+      '<div class="config-rank">' + (RANKS[i] || '#' + (i+1)) + '</div>' +
+      '<div class="config-name">' + esc(cfg.name) + '</div>' +
+      '<div class="config-url">'  + esc(cfg.url)  + '</div>' +
+      '<div class="config-meta">' +
+        '<span class="ping-badge ' + pingCls(ms) + '">' + pingLbl(ms) + '</span>' +
+        '<span class="copy-hint">' +
+          '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">' +
+            '<rect x="5" y="5" width="8" height="9" rx="2"/>' +
+            '<path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v7A1.5 1.5 0 0 0 3.5 12H5"/>' +
+          '</svg>' +
+          'Нажмите, чтобы скопировать' +
+        '</span>' +
+      '</div>';
+    el.addEventListener('click', function(){ copyUrl(cfg.url, cfg.name); });
+    grid.appendChild(el);
+  });
+}
+
+// ── Copy ───────────────────────────────────────────────────────────────────
+var toastTid;
+function copyUrl(url, name) {
+  var done = function(){ toast('✓ ' + name); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(function(){
+      legacyCopy(url); done();
+    });
+  } else { legacyCopy(url); done(); }
+}
+function legacyCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+function toast(msg) {
+  var t = document.getElementById('copyToast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTid);
+  toastTid = setTimeout(function(){ t.classList.remove('show'); }, 2600);
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function setStatus(text, type) {
+  var el = document.getElementById('statusBadge');
+  el.textContent = text;
+  el.className = 'status-badge status-' + type;
+}
+function showProgress(done, total) {
+  var row = document.getElementById('pingProgressRow');
+  row.style.display = 'flex';
+  document.getElementById('pingFill').style.width  = (total ? Math.round(done/total*100) : 0) + '%';
+  document.getElementById('pingText').textContent  = done + ' / ' + total;
+}
+function hideProgress() { document.getElementById('pingProgressRow').style.display = 'none'; }
+function showError(msg) { var b = document.getElementById('errorBanner'); b.textContent = msg; b.classList.add('visible'); }
+function hideError()    { document.getElementById('errorBanner').classList.remove('visible'); }
+function timeStr() {
+  return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ── Countdown 30 min ────────────────────────────────────────────────────────
+var secsLeft = 1800, cdTid;
+function startCountdown() {
+  clearInterval(cdTid);
+  secsLeft = 1800;
+  cdTid = setInterval(function() {
+    secsLeft--;
+    if (secsLeft <= 0) {
+      secsLeft = 1800;
+      loadConfigs().then(function(ok){ if (ok) measureAllPings(); });
+    }
+    var m = String(Math.floor(secsLeft / 60)).padStart(2, '0');
+    var s = String(secsLeft % 60).padStart(2, '0');
+    document.getElementById('countdown').textContent = m + ':' + s;
+  }, 1000);
+}
+
+// ── Ping re-check every 10 min ─────────────────────────────────────────────
+setInterval(function(){
+  if (allConfigs.length) measureAllPings();
+}, 10 * 60 * 1000);
+
+// ── Footer clock ───────────────────────────────────────────────────────────
+function updateClock() {
+  var n = new Date();
+  document.getElementById('footerTime').textContent =
+    n.toLocaleDateString('ru-RU') + '\u2002' +
+    n.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+setInterval(updateClock, 60000);
+
+// ── Modal ──────────────────────────────────────────────────────────────────
+function openModal()  { document.getElementById('modalBackdrop').classList.add('open'); }
+function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
+function closeModalBg(e) { if (e.target === document.getElementById('modalBackdrop')) closeModal(); }
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+(async function() {
+  updateClock();
+  startCountdown();
+  var ok = await loadConfigs();
+  if (ok) await measureAllPings();
+})();
+</script>
+</body>
+</html>
